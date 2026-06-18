@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>圖片宮格切割打亂工具</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, "Microsoft JhengHei", sans-serif;
+      background: linear-gradient(135deg, #fff5f5, #f7f9ff);
+      color: #222;
+    }
+
+    .app {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+      font-size: 28px;
+    }
+
+    .desc {
+      margin-bottom: 24px;
+      color: #666;
+    }
+
+    .panel {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr auto auto;
+      gap: 16px;
+      align-items: end;
+      padding: 18px;
+      margin-bottom: 24px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(229, 57, 53, 0.12);
+      backdrop-filter: blur(10px);
+    }
+
+    .control {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    select,
+    button {
+      font-size: 16px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #ddd;
+      background: #fff;
+    }
+
+    select {
+      cursor: pointer;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: #e53935;
+      color: #fff;
+      font-weight: bold;
+      height: 44px;
+      padding: 0 20px;
+      box-shadow: 0 8px 18px rgba(229, 57, 53, 0.25);
+      transition: 0.2s;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      background: #c62828;
+      transform: translateY(-1px);
+    }
+
+    .download-btn {
+      background: #222;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+    }
+
+    .download-btn:hover {
+      background: #000;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .upload-box {
+      min-height: 92px;
+      border: 2px dashed #ff9a9a;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #fffafa, #fff);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px;
+      cursor: pointer;
+      transition: 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-box::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top right, rgba(229, 57, 53, 0.12), transparent 38%);
+      pointer-events: none;
+    }
+
+    .upload-box:hover {
+      border-color: #e53935;
+      background: #fff5f5;
+      transform: translateY(-1px);
+    }
+
+    .upload-box.dragover {
+      border-color: #e53935;
+      background: #ffecec;
+      box-shadow: 0 0 0 4px rgba(229, 57, 53, 0.08);
+    }
+
+    .upload-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: #e53935;
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      flex-shrink: 0;
+      box-shadow: 0 8px 18px rgba(229, 57, 53, 0.25);
+      z-index: 1;
+    }
+
+    .upload-text {
+      z-index: 1;
+    }
+
+    .upload-title {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .upload-subtitle {
+      color: #777;
+      font-size: 14px;
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .stage-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      overflow: auto;
+    }
+
+    .grid {
+      display: grid;
+      border: 1px solid red;
+      background: white;
+      max-width: 100%;
+    }
+
+    .tile {
+      border: 1px solid red;
+      background-repeat: no-repeat;
+    }
+
+    .placeholder {
+      width: min(420px, 90vw);
+      height: 420px;
+      border: 2px dashed #ccc;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #888;
+      text-align: center;
+      padding: 20px;
+      background: #fafafa;
+    }
+
+    @media (max-width: 900px) {
+      .panel {
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <h1>圖片宮格切割工具</h1>
+    <p class="desc">上傳圖片後，可以選擇九宮格、十六宮格等，也可以選擇是否打亂，並下載成 PNG。</p>
+
+    <div class="panel">
+      <div class="control">
+        <label>選擇圖片</label>
+
+        <input class="file-input" type="file" id="imageInput" accept="image/*" />
+
+        <div class="upload-box" id="uploadBox">
+          <div class="upload-icon">＋</div>
+          <div class="upload-text">
+            <div class="upload-title">點擊或拖曳圖片到這裡</div>
+            <div class="upload-subtitle" id="fileName">支援 JPG、PNG、WEBP 等圖片格式</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="control">
+        <label for="gridSize">宮格數</label>
+        <select id="gridSize">
+          <option value="3">九宮格 3 × 3</option>
+          <option value="4">十六宮格 4 × 4</option>
+          <option value="5">二十五宮格 5 × 5</option>
+          <option value="6">三十六宮格 6 × 6</option>
+        </select>
+      </div>
+
+      <div class="control">
+        <label for="shuffleMode">是否打亂</label>
+        <select id="shuffleMode">
+          <option value="no">不要打亂</option>
+          <option value="yes">打亂</option>
+        </select>
+      </div>
+
+      <div class="control">
+        <label>&nbsp;</label>
+        <button id="renderBtn">產生宮格</button>
+      </div>
+
+      <div class="control">
+        <label>&nbsp;</label>
+        <button class="download-btn" id="downloadBtn">下載圖片</button>
+      </div>
+    </div>
+
+    <div class="stage-wrap">
+      <div id="stage">
+        <div class="placeholder">請先上傳一張圖片</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById("imageInput");
+    const uploadBox = document.getElementById("uploadBox");
+    const fileName = document.getElementById("fileName");
+    const gridSizeSelect = document.getElementById("gridSize");
+    const shuffleModeSelect = document.getElementById("shuffleMode");
+    const renderBtn = document.getElementById("renderBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const stage = document.getElementById("stage");
+
+    let imageUrl = "";
+    let sourceImage = null;
+    let imageWidth = 0;
+    let imageHeight = 0;
+    let currentPieces = [];
+
+    uploadBox.addEventListener("click", function () {
+      imageInput.click();
+    });
+
+    imageInput.addEventListener("change", function () {
+      const file = imageInput.files[0];
+      handleImageFile(file);
+    });
+
+    uploadBox.addEventListener("dragover", function (event) {
+      event.preventDefault();
+      uploadBox.classList.add("dragover");
+    });
+
+    uploadBox.addEventListener("dragleave", function () {
+      uploadBox.classList.remove("dragover");
+    });
+
+    uploadBox.addEventListener("drop", function (event) {
+      event.preventDefault();
+      uploadBox.classList.remove("dragover");
+
+      const file = event.dataTransfer.files[0];
+      handleImageFile(file);
+    });
+
+    renderBtn.addEventListener("click", renderGrid);
+    downloadBtn.addEventListener("click", downloadImage);
+
+    gridSizeSelect.addEventListener("change", renderGrid);
+    shuffleModeSelect.addEventListener("change", renderGrid);
+
+    function handleImageFile(file) {
+      if (!file) return;
+
+      if (!file.type.startsWith("image/")) {
+        alert("請選擇圖片檔案");
+        return;
+      }
+
+      if (imageUrl) {
+        URL.revokeObjectURL(imageUrl);
+      }
+
+      imageUrl = URL.createObjectURL(file);
+      fileName.textContent = file.name;
+
+      const img = new Image();
+
+      img.onload = function () {
+        sourceImage = img;
+        imageWidth = img.naturalWidth;
+        imageHeight = img.naturalHeight;
+        renderGrid();
+      };
+
+      img.src = imageUrl;
+    }
+
+    function renderGrid() {
+      if (!imageUrl || !imageWidth || !imageHeight) {
+        stage.innerHTML = `<div class="placeholder">請先上傳一張圖片</div>`;
+        return;
+      }
+
+      const size = Number(gridSizeSelect.value);
+      const shouldShuffle = shuffleModeSelect.value === "yes";
+      const total = size * size;
+
+      const maxDisplayWidth = Math.min(520, window.innerWidth - 80);
+      const scale = Math.min(1, maxDisplayWidth / imageWidth);
+
+      const displayWidth = imageWidth * scale;
+      const displayHeight = imageHeight * scale;
+
+      let pieces = [];
+
+      for (let i = 0; i < total; i++) {
+        pieces.push(i);
+      }
+
+      if (shouldShuffle) {
+        pieces = shuffleArray(pieces);
+      }
+
+      currentPieces = pieces;
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      grid.style.width = `${displayWidth}px`;
+      grid.style.height = `${displayHeight}px`;
+      grid.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+      grid.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+
+      pieces.forEach(function (pieceIndex) {
+        const originalRow = Math.floor(pieceIndex / size);
+        const originalCol = pieceIndex % size;
+
+        const tile = document.createElement("div");
+        tile.className = "tile";
+
+        tile.style.backgroundImage = `url("${imageUrl}")`;
+        tile.style.backgroundSize = `${displayWidth}px ${displayHeight}px`;
+
+        const pieceWidth = displayWidth / size;
+        const pieceHeight = displayHeight / size;
+
+        const x = -originalCol * pieceWidth;
+        const y = -originalRow * pieceHeight;
+
+        tile.style.backgroundPosition = `${x}px ${y}px`;
+
+        grid.appendChild(tile);
+      });
+
+      stage.innerHTML = "";
+      stage.appendChild(grid);
+    }
+
+    function downloadImage() {
+      if (!sourceImage || !imageWidth || !imageHeight) {
+        alert("請先上傳圖片");
+        return;
+      }
+
+      const size = Number(gridSizeSelect.value);
+      const total = size * size;
+      const pieces = currentPieces.length === total ? currentPieces : createOrderedPieces(total);
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = imageWidth;
+      canvas.height = imageHeight;
+
+      const pieceWidth = imageWidth / size;
+      const pieceHeight = imageHeight / size;
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      pieces.forEach(function (pieceIndex, currentIndex) {
+        const sourceRow = Math.floor(pieceIndex / size);
+        const sourceCol = pieceIndex % size;
+
+        const targetRow = Math.floor(currentIndex / size);
+        const targetCol = currentIndex % size;
+
+        ctx.drawImage(
+          sourceImage,
+          sourceCol * pieceWidth,
+          sourceRow * pieceHeight,
+          pieceWidth,
+          pieceHeight,
+          targetCol * pieceWidth,
+          targetRow * pieceHeight,
+          pieceWidth,
+          pieceHeight
+        );
+      });
+
+      drawRedGridLine(ctx, imageWidth, imageHeight, size);
+
+      const link = document.createElement("a");
+      link.download = `grid-image-${size}x${size}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
+
+    function drawRedGridLine(ctx, width, height, size) {
+      const lineWidth = Math.max(2, Math.round(Math.min(width, height) / 350));
+
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = lineWidth;
+
+      for (let i = 0; i <= size; i++) {
+        const x = i * width / size;
+        const y = i * height / size;
+
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+    }
+
+    function createOrderedPieces(total) {
+      const pieces = [];
+
+      for (let i = 0; i < total; i++) {
+        pieces.push(i);
+      }
+
+      return pieces;
+    }
+
+    function shuffleArray(array) {
+      const newArray = [...array];
+
+      for (let i = newArray.length - 1; i > 0; i--) {
+        const randomIndex = Math.floor(Math.random() * (i + 1));
+        [newArray[i], newArray[randomIndex]] = [newArray[randomIndex], newArray[i]];
+      }
+
+      return newArray;
+    }
+
+    window.addEventListener("resize", function () {
+      renderGrid();
+    });
+  </script>
+</body>
+</html>
