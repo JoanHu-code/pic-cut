@@ -18,7 +18,7 @@
     }
 
     .app {
-      max-width: 1000px;
+      max-width: 1100px;
       margin: 0 auto;
       padding: 24px;
     }
@@ -35,7 +35,7 @@
 
     .panel {
       display: grid;
-      grid-template-columns: 1.4fr 1fr 1fr auto auto;
+      grid-template-columns: 1.4fr 1fr 1fr auto auto auto;
       gap: 16px;
       align-items: end;
       padding: 18px;
@@ -86,6 +86,20 @@
     button:hover {
       background: #c62828;
       transform: translateY(-1px);
+    }
+
+    .flip-btn {
+      background: #1565c0;
+      box-shadow: 0 8px 18px rgba(21, 101, 192, 0.22);
+    }
+
+    .flip-btn:hover {
+      background: #0d47a1;
+    }
+
+    .flip-btn.active {
+      background: #0d47a1;
+      box-shadow: 0 8px 18px rgba(13, 71, 161, 0.35);
     }
 
     .download-btn {
@@ -203,9 +217,23 @@
       background: #fafafa;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1050px) {
+      .panel {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .control:first-child {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 700px) {
       .panel {
         grid-template-columns: 1fr;
+      }
+
+      .control:first-child {
+        grid-column: auto;
       }
 
       button {
@@ -218,7 +246,7 @@
 <body>
   <div class="app">
     <h1>圖片宮格切割工具</h1>
-    <p class="desc">上傳圖片後，可以選擇九宮格、十六宮格等，也可以選擇是否打亂，並下載成 PNG。</p>
+    <p class="desc">上傳圖片後，可以選擇九宮格、十六宮格等，也可以選擇是否打亂、圖片是否倒過來，並下載成 PNG。</p>
 
     <div class="panel">
       <div class="control">
@@ -260,6 +288,11 @@
 
       <div class="control">
         <label>&nbsp;</label>
+        <button class="flip-btn" id="flipBtn">圖片倒過來</button>
+      </div>
+
+      <div class="control">
+        <label>&nbsp;</label>
         <button class="download-btn" id="downloadBtn">下載圖片</button>
       </div>
     </div>
@@ -278,6 +311,7 @@
     const gridSizeSelect = document.getElementById("gridSize");
     const shuffleModeSelect = document.getElementById("shuffleMode");
     const renderBtn = document.getElementById("renderBtn");
+    const flipBtn = document.getElementById("flipBtn");
     const downloadBtn = document.getElementById("downloadBtn");
     const stage = document.getElementById("stage");
 
@@ -286,6 +320,7 @@
     let imageWidth = 0;
     let imageHeight = 0;
     let currentPieces = [];
+    let isImageFlipped = false;
 
     uploadBox.addEventListener("click", function () {
       imageInput.click();
@@ -314,6 +349,7 @@
     });
 
     renderBtn.addEventListener("click", renderGrid);
+    flipBtn.addEventListener("click", toggleFlipImage);
     downloadBtn.addEventListener("click", downloadImage);
 
     gridSizeSelect.addEventListener("change", renderGrid);
@@ -340,10 +376,35 @@
         sourceImage = img;
         imageWidth = img.naturalWidth;
         imageHeight = img.naturalHeight;
+
+        isImageFlipped = false;
+        updateFlipButtonText();
+
         renderGrid();
       };
 
       img.src = imageUrl;
+    }
+
+    function toggleFlipImage() {
+      if (!sourceImage || !imageWidth || !imageHeight) {
+        alert("請先上傳圖片");
+        return;
+      }
+
+      isImageFlipped = !isImageFlipped;
+      updateFlipButtonText();
+      renderGrid();
+    }
+
+    function updateFlipButtonText() {
+      if (isImageFlipped) {
+        flipBtn.textContent = "恢復原方向";
+        flipBtn.classList.add("active");
+      } else {
+        flipBtn.textContent = "圖片倒過來";
+        flipBtn.classList.remove("active");
+      }
     }
 
     function renderGrid() {
@@ -374,6 +435,8 @@
 
       currentPieces = pieces;
 
+      const previewImageUrl = createPreviewImageUrl(displayWidth, displayHeight);
+
       const grid = document.createElement("div");
       grid.className = "grid";
       grid.style.width = `${displayWidth}px`;
@@ -388,7 +451,7 @@
         const tile = document.createElement("div");
         tile.className = "tile";
 
-        tile.style.backgroundImage = `url("${imageUrl}")`;
+        tile.style.backgroundImage = `url("${previewImageUrl}")`;
         tile.style.backgroundSize = `${displayWidth}px ${displayHeight}px`;
 
         const pieceWidth = displayWidth / size;
@@ -404,6 +467,26 @@
 
       stage.innerHTML = "";
       stage.appendChild(grid);
+    }
+
+    function createPreviewImageUrl(displayWidth, displayHeight) {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+
+      ctx.save();
+
+      if (isImageFlipped) {
+        ctx.translate(displayWidth, displayHeight);
+        ctx.rotate(Math.PI);
+      }
+
+      ctx.drawImage(sourceImage, 0, 0, displayWidth, displayHeight);
+      ctx.restore();
+
+      return canvas.toDataURL("image/png");
     }
 
     function downloadImage() {
@@ -422,6 +505,7 @@
       canvas.width = imageWidth;
       canvas.height = imageHeight;
 
+      const sourceCanvas = createSourceCanvasForDownload();
       const pieceWidth = imageWidth / size;
       const pieceHeight = imageHeight / size;
 
@@ -436,7 +520,7 @@
         const targetCol = currentIndex % size;
 
         ctx.drawImage(
-          sourceImage,
+          sourceCanvas,
           sourceCol * pieceWidth,
           sourceRow * pieceHeight,
           pieceWidth,
@@ -451,9 +535,29 @@
       drawRedGridLine(ctx, imageWidth, imageHeight, size);
 
       const link = document.createElement("a");
-      link.download = `grid-image-${size}x${size}.png`;
+      link.download = `grid-image-${size}x${size}${isImageFlipped ? "-flipped" : ""}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
+    }
+
+    function createSourceCanvasForDownload() {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = imageWidth;
+      canvas.height = imageHeight;
+
+      ctx.save();
+
+      if (isImageFlipped) {
+        ctx.translate(imageWidth, imageHeight);
+        ctx.rotate(Math.PI);
+      }
+
+      ctx.drawImage(sourceImage, 0, 0, imageWidth, imageHeight);
+      ctx.restore();
+
+      return canvas;
     }
 
     function drawRedGridLine(ctx, width, height, size) {
